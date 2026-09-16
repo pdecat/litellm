@@ -651,6 +651,11 @@ class AmazonConverseConfig(BaseConfig):
             )
             return ToolChoiceValuesBlock(tool=specific_tool)
         else:
+            # Same contract as the tool_choice == "none" branch above: the message
+            # tells the caller to set drop_params, so honour it here too rather
+            # than raising whatever the caller configured.
+            if litellm.drop_params is True or drop_params is True:
+                return None
             raise litellm.utils.UnsupportedParamsError(
                 message=f"Bedrock doesn't support tool_choice={tool_choice}. Supported tool_choice values=['auto', 'required', json object]. To drop it from the call, set `litellm.drop_params = True.",
                 status_code=400,

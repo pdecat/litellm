@@ -6953,3 +6953,47 @@ def test_transform_response_honors_json_mode_kwarg_when_optional_params_lack_it(
     )
     assert result.choices[0].message.tool_calls is None
     assert json.loads(result.choices[0].message.content) == {"city": "Paris", "population": 2100000}
+
+
+@pytest.mark.parametrize("tool_choice", ["any", "AUTO", "some-future-mode"])
+def test_unsupported_tool_choice_dropped_when_drop_params_set_converse(tool_choice, monkeypatch):
+    """An out-of-range tool_choice must honour drop_params, like tool_choice='none' does.
+
+    The error message tells the caller to set drop_params, so raising anyway left
+    no way out: a proxy with drop_params already on still 400s. Anthropic sends
+    tool_choice='any' natively, so an Anthropic-shaped client pointed at the
+    OpenAI-compatible surface hits this on every tool call.
+    """
+    monkeypatch.setattr(litellm, "drop_params", False)
+    config = AmazonConverseConfig()
+
+    assert (
+        config.map_tool_choice_values(
+            model="anthropic.claude-3-5-sonnet-20240620-v1:0",
+            tool_choice=tool_choice,
+            drop_params=True,
+        )
+        is None
+    )
+
+    monkeypatch.setattr(litellm, "drop_params", True)
+    assert (
+        config.map_tool_choice_values(
+            model="anthropic.claude-3-5-sonnet-20240620-v1:0",
+            tool_choice=tool_choice,
+            drop_params=False,
+        )
+        is None
+    )
+
+
+def test_unsupported_tool_choice_still_raises_without_drop_params_converse(monkeypatch):
+    monkeypatch.setattr(litellm, "drop_params", False)
+    config = AmazonConverseConfig()
+
+    with pytest.raises(litellm.utils.UnsupportedParamsError, match="tool_choice=any"):
+        config.map_tool_choice_values(
+            model="anthropic.claude-3-5-sonnet-20240620-v1:0",
+            tool_choice="any",
+            drop_params=False,
+        )
